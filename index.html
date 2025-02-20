@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Emoji Charades</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif; /* sets font style */
+        text-align: center; /* sets font style */
+        background: #f0f0f0; /* sets background color */
+      }
+      .emoji-display {
+        font-size: 50px; /* sets font size for emoji displayed on guesser screen */
+        margin: 20px; /* adds spacing */
+      }
+      #guessInput,
+      #emojiInput {
+        padding: 10px;
+        font-size: 18px; /* sets font size for input parameter */
+        margin-top: 10px; /* adds a margin at the top */
+      }
+      #guessButton,
+      #submitEmoji,
+      #yesButton,
+      #noButton {
+        padding: 10px;
+        font-size: 18px; /* sets font size for buttons on both the actor and guesser ends */
+        cursor: pointer; /* changes the curson to a pointer (to click) on hover */
+        margin: 5px; /* adds a margin */
+      }
+      .message {
+        font-size: 20px; /* sets font size for all messages */
+        font-weight: bold; /* makes text bold */
+        margin-top: 20px; /* adds margin at the top */
+      }
+      .hidden {
+        display: none; /* hides elements within a class */
+      }
+    </style>
+    <script src="/socket.io/socket.io.js"></script>
+  </head>
+  <body>
+    <h1>Emoji Charades 🎭</h1>
+    <!-- given the games a title -->
+    <div id="game">
+      <p>One player selects an emoji, the other guesses!</p>
+      <!-- gives introductory instructions for the game -->
+
+      <!-- section for the actor or the person who selects the emoji -->
+      <div id="actorSection" class="hidden">
+        <p>Enter an emoji to act out:</p>
+        <p>Prompt: make them to guess any of the harry potter books!</p>
+        <!-- prompt for the game -->
+        <input type="text" id="emojiInput" placeholder="Enter emojis..." />
+        <!-- input field for the actor i.e. place where they input an emoji for the guesser -->
+        <button id="submitEmoji">Submit</button>
+        <!-- button to submit -->
+        <p id="actorMessage" class="hidden"></p>
+
+        <!-- Section for actor to respond to guesses -->
+        <div id="actorResponseSection" class="hidden">
+          <p id="guessReceived"></p>
+          <!-- displays the received guess -->
+          <button id="yesButton">Yes</button>
+          <!-- create button for correct guess -->
+          <button id="noButton">No</button>
+          <!-- button for wrong guess -->
+        </div>
+      </div>
+
+      <!-- section for guesser -->
+      <div id="guessSection" class="hidden">
+        <div class="emoji-display" id="emoji">❓</div>
+        <!-- displays the selected emoji -->
+        <input type="text" id="guessInput" placeholder="Enter your guess..." />
+        <!-- input their guess -->
+        <button id="guessButton">Guess</button>
+        <!-- creates button to submit a guess -->
+        <p class="message" id="feedback"></p>
+        <!-- displays the feedback message -->
+      </div>
+
+      <p id="waitingMessage">Waiting for another player...</p>
+      <!-- this is the message shown while waiting for both players to join -->
+    </div>
+
+    <script>
+      const socket = io();
+      let isActor = false; <!-- tracks if the player is the actor -->
+      // Assign role upon connection
+      socket.on("role", function (data) {
+        if (data.role === "actor") {
+          // if the player is the actor
+          isActor = true;
+          document.getElementById("actorSection").classList.remove("hidden"); // show the player the actor section (from above)
+        } else {
+          // if the player is the guesser
+          document.getElementById("guessSection").classList.remove("hidden"); // show the player the guesser section (from above)
+        }
+        document.getElementById("waitingMessage").classList.add("hidden"); // hide the waiting message for both players
+      });
+
+      // Actor submits emoji
+      document.getElementById("submitEmoji").onclick = function () {
+        const emoji = document.getElementById("emojiInput").value.trim(); // get the emoji inputted by the actor
+        if (emoji) {
+          socket.emit("selectEmoji", emoji); // send this emoji to the server
+        }
+      };
+
+      // Display selected emoji to the guesser
+      socket.on("emojiSelected", function (emoji) {
+        if (!isActor) {
+          // ensures that it is only updated for the guesser
+          document.getElementById("emoji").textContent = emoji; // display the emoji for the guesser
+        }
+      });
+
+      // Guesser submits a guess
+      document.getElementById("guessButton").onclick = function () {
+        const guess = document.getElementById("guessInput").value.trim(); // get the guess input that the guesser types in
+        if (guess) {
+          socket.emit("guess", guess); // send the guess to the server
+        }
+      };
+
+      // Actor receives the guess and sees Yes/No buttons
+      socket.on("guessReceived", function (guess) {
+        if (isActor) {
+          // ensures that only the actor sees this
+          document.getElementById(
+            "guessReceived"
+          ).textContent = `Guesser guessed: ${guess}`; // show the guess to the actor
+          document
+            .getElementById("actorResponseSection")
+            .classList.remove("hidden"); // show the yes and no buttos that were created previously but hidden
+        }
+      });
+
+      // Actor clicks Yes or No to confirm if the guess is correct
+      document.getElementById("yesButton").onclick = function () {
+        socket.emit("actorResponse", { correct: true }); // send the "Correct!" response to the server
+        document.getElementById("actorResponseSection").classList.add("hidden"); // hide the Yes and No buttons that were previously shown
+      };
+
+      document.getElementById("noButton").onclick = function () {
+        socket.emit("actorResponse", { correct: false }); // send the "Wrong, try Again" respone to the server
+        document.getElementById("actorResponseSection").classList.add("hidden"); // hide the Yes and No buttons that were previously shown
+      };
+
+      // Display result message for the guesser
+      socket.on("result", function (result) {
+        document.getElementById("feedback").textContent = result.message; // show the result feedback to the guesser
+      });
+    </script>
+  </body>
+</html>
